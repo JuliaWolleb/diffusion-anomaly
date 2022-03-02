@@ -1,3 +1,58 @@
-# diffusion-anomaly
+# Diffusion Models for Medical Anomaly Detection
 
-Here, we will publish the code to our MICCAI 2022 submission "Anomaly Detection with Diffusion Models" (paper 704).
+We provide the Pytorch implementation of our MICCAI 2022 submission "Anomaly Detection with Diffusion Models" (paper 704).
+
+
+The implementation of Denoising Diffusion Probabilistic Models presented in the paper is based on [openai/guided-diffusion](https://github.com/openai/guided-diffusion).
+
+
+## Data
+
+We evaluated our method on the [BRATS2020 dataset](https://www.med.upenn.edu/cbica/brats2020/data.html), and on the [CheXpert dataset](https://stanfordmlgroup.github.io/competitions/chexpert/)
+A mini-example how the data needs to be stored can be found in the folder *data*.
+
+## Usage
+
+We set the flags as follows:
+```
+MODEL_FLAGS="--image_size 256 --num_channels 128 --class_cond False --num_res_blocks 2 --num_heads 1 --learn_sigma True --use_scale_shift_norm False --attention_resolutions 16"
+DIFFUSION_FLAGS="--diffusion_steps 1000 --noise_schedule linear --rescale_learned_sigmas False --rescale_timesteps False"
+TRAIN_FLAGS="--lr 1e-4 --batch_size 10"
+CLASSIFIER_FLAGS="--image_size 256 --classifier_attention_resolutions 32,16,8 --classifier_depth 4 --classifier_width 32 --classifier_pool attention --classifier_resblock_updown True --classifier_use_scale_shift_norm True"
+SAMPLE_FLAGS="--batch_size 1 --num_samples 1 --timestep_respacing ddim1000 --use_ddim True"
+```
+To train the classification model, run
+```
+python scripts/classifier_train.py --data_dir path_to_traindata --val_data_dir path_to_validation data $TRAIN_FLAGS $CLASSIFIER_FLAGS
+```
+To train the diffusion model, run
+```
+python scripts/image_train.py --data_dir --data_dir path_to_traindata  $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
+```
+The model will be saved in the *results* folder.
+
+For image-to-image translation to a healthy subject on the test set, run
+```
+python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS  $SAMPLE_FLAGS 
+```
+A visualization of the sampling process is done using [Visdom](https://github.com/fossasia/visdom).
+
+## Pretrained Models
+
+Here, we will post a link to the pretrained models.
+
+## Comparing Methods
+
+### FixedPoint-GAN
+
+We follow the implementation given in this [repo](https://github.com/mahfuzmohammad/Fixed-Point-GAN). We train the model for 150 epochs.
+
+### VAE
+
+We follow the implementation given in this [repo](https://github.com/aubreychen9012/cAAE), and train our model for 500 epochs.
+
+### DDPM
+For sampling using the DDPM approach, run 
+```
+python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS 
+```
