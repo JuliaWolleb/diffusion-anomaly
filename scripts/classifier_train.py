@@ -1,5 +1,5 @@
 """
-Train a noised image classifier on ImageNet.
+Train a noised image classifier.
 """
 
 import argparse
@@ -12,7 +12,7 @@ from guided_diffusion.bratsloader import BRATSDataset
 import blobfile as bf
 import torch as th
 os.environ['OMP_NUM_THREADS'] = '8'
-#os.environ['CUDA_VISIBLE_DEVICES'] ='1'
+
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
@@ -76,14 +76,6 @@ def main():
         model=model, use_fp16=args.classifier_use_fp16, initial_lg_loss_scale=16.0
     )
 
-    # model = DDP(
-    #     model,
-    #     device_ids=[dist_util.dev()],
-    #     output_device=dist_util.dev(),
-    #     broadcast_buffers=False,
-    #     bucket_cap_mb=128,
-    #     find_unused_parameters=False,
-    # )
 
     logger.log("creating data loader...")
     ds = BRATSDataset(args.data_dir, test_flag=False)
@@ -112,35 +104,25 @@ def main():
         opt_checkpoint = bf.join(
             bf.dirname(args.resume_checkpoint), f"opt{resume_step:06}.pt"
         )
-        print('optcheckpoint', opt_checkpoint)
-        opt_checkpoint="./results/opt0007000class.pt"
         logger.log(f"loading optimizer state from checkpoint: {opt_checkpoint}")
         opt.load_state_dict(
             dist_util.load_state_dict(opt_checkpoint, map_location=dist_util.dev())
         )
 
     logger.log("training classifier model...")
-    #params = list(model().parameters())
-   # weight = np.squeeze(params[-1].data.numpy())
 
 
     def forward_backward_log(data_loader, step, prefix="train"):
-      #  print('loader', len(data_loader))
-        batch, extra, labels = next(data_loader)
+    
+        batch, extra, labels,_ , _ = next(data_loader)
 
-
-
-        #labels = extra["y"].to(dist_util.dev())
         print('labels', labels)
 
 
         batch = batch.to(dist_util.dev())
         labels= labels.to(dist_util.dev())
-        # Noisy images
         if args.noised:
             t, _ = schedule_sampler.sample(batch.shape[0], dist_util.dev())
-            print('t noisy', t)
-            print('batch', batch.shape)
             batch = diffusion.q_sample(batch, t)
         else:
             t = th.zeros(batch.shape[0], dtype=th.long, device=dist_util.dev())
@@ -148,15 +130,10 @@ def main():
         for i, (sub_batch, sub_labels, sub_t) in enumerate(
             split_microbatches(args.microbatch, batch, labels, t)
         ):
-            print('subbatch', sub_batch.shape, sub_batch.max(), sub_batch.min())
-           # viz.image(visualize(sub_batch[0,0,...]), opts=dict(caption="input3"+str(sub_labels[0])))
-            #viz.image(visualize(sub_batch[1, 0, ...]), opts=dict(caption="input3"+str(sub_labels[0])))
-          #  sub_batch.requiresgrad
-
+          
             sub_batch = Variable(sub_batch, requires_grad=True)
             logits = model(sub_batch, timesteps=sub_t)
-            print('logits1', logits.shape)
-
+         
             loss = F.cross_entropy(logits, sub_labels, reduction="none")
             losses = {}
             losses[f"{prefix}_loss"] = loss.detach()
@@ -218,21 +195,7 @@ def main():
         acctrain=correct/total
 
         mp_trainer.optimize(opt)
-        if val_data is not None and not step % args.eval_interval:
-           # with th.no_grad():
-             #   with model.no_sync():
-                    viz.line(X=th.ones((1, 1)).cpu() * step, Y=th.Tensor([acctrain]).unsqueeze(0).cpu(),
-                             win=acc_window, name='training accuracy',
-                             update='append')
-                    model.eval()
-                    losses=forward_backward_log(val_data, step + resume_step, prefix="val")
-                    accval=losses["val_acc@1"].sum()/args.batch_size
-                    viz.line(X=th.ones((1, 1)).cpu() * step, Y=th.Tensor([accval]).unsqueeze(0).cpu(),
-                             win=acc_window, name='val accuracy',
-                             update='append')
-                    correct = 0;
-                    total = 0
-                    model.train()
+          
         if not step % args.log_interval:
             logger.dumpkvs()
         if (
@@ -282,8 +245,8 @@ def split_microbatches(microbatch, *args):
 
 def create_argparser():
     defaults = dict(
-        data_dir="./Bratssliced/training",
-        val_data_dir="./Bratssliced/testing",
+        data_dir="",
+        val_data_dir="",
         noised=True,
         iterations=150000,
         lr=3e-4,
@@ -294,7 +257,7 @@ def create_argparser():
         schedule_sampler="uniform",
         resume_checkpoint="",
         log_interval=1,
-        eval_interval=100,
+        eval_interval=1000,
         save_interval=5000,
     )
     defaults.update(classifier_and_diffusion_defaults())
