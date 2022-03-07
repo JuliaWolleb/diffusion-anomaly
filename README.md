@@ -1,6 +1,6 @@
 # Diffusion Models for Medical Anomaly Detection
 
-We provide the Pytorch implementation of our MICCAI 2022 submission "Anomaly Detection with Diffusion Models" (paper 704).
+We provide the Pytorch implementation of our MICCAI 2022 submission "Diffusion Models for Medical Anomaly Detection". (paper 704).
 
 
 The implementation of Denoising Diffusion Probabilistic Models presented in the paper is based on [openai/guided-diffusion](https://github.com/openai/guided-diffusion).
@@ -37,9 +37,6 @@ python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model
 ```
 A visualization of the sampling process is done using [Visdom](https://github.com/fossasia/visdom).
 
-## Pretrained Models
-
-Here, we will post a link to the pretrained models.
 
 ## Comparing Methods
 
@@ -57,3 +54,8 @@ For sampling using the DDPM approach, run
 ```
 python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS 
 ```
+
+## Pretrained Models
+
+Here, we will post a link to the pretrained models.
+
