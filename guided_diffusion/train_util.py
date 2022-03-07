@@ -19,9 +19,6 @@ grad_window = viz.line(Y=th.zeros((1)).cpu(), X=th.zeros((1)).cpu(),
                            opts=dict(xlabel='step', ylabel='amplitude', title='gradient'))
 
 
-# For ImageNet experiments, this was a good default value.
-# We found that the lg_loss_scale quickly climbed to
-# 20-21 within the first ~1K steps of training.
 INITIAL_LOG_LOSS_SCALE = 20.0
 
 def visualize(img):
@@ -35,7 +32,6 @@ class TrainLoop:
         self,
         *,
         model,
-        classifier=None,
         diffusion,
         data,
         batch_size,
@@ -52,7 +48,6 @@ class TrainLoop:
         lr_anneal_steps=0,
     ):
         self.model = model
-        self.classifier = classifier
         self.diffusion = diffusion
         self.datal = data
         self.iterdatal = iter(data)
@@ -167,9 +162,7 @@ class TrainLoop:
 
     def run_loop(self):
         i = 0
-        totmse = 0
-        totcls = 0
-        totrec=0
+      
 
         while (
             not self.lr_anneal_steps
@@ -179,33 +172,13 @@ class TrainLoop:
                 batch, cond, label = next(self.iterdatal)
             except:
                 self.iterdatal = iter(self.datal)
-                batch, cond, label = next(self.iterdatal)
+                batch, cond, label, _, _ = next(self.iterdatal)
 
-            lossmse, losscls, lossrec, sample = self.run_step(batch, cond)
-            i += 1
-            totmse += lossmse;
-            totcls += losscls
-            totrec += lossrec
-            if i % 10 == 0:
-                viz.line(X=th.ones((1, 1)).cpu() * i, Y=th.Tensor([totcls]).unsqueeze(0).cpu(),
-                         win=loss_window, name='loss_cls',
-                         update='append')
-                viz.line(X=th.ones((1, 1)).cpu() * i, Y=th.Tensor([totmse]).unsqueeze(0).cpu(),
-                         win=loss_window, name='loss_mse',
-                         update='append')
-                viz.line(X=th.ones((1, 1)).cpu() * i, Y=th.Tensor([totrec]).unsqueeze(0).cpu(),
-                         win=loss_window, name='loss_rec',
-                         update='append')
-                totmse = 0
-                totcls = 0
-                totrec=0
+            lossmse, sample = self.run_step(batch, cond)
+ 
+         
+          
 
-            if i % 200 == 0:
-                viz.image(visualize(sample[0, 0, ...]), opts=dict(caption="sampled output"))
-                viz.image(visualize(sample[0, 4, ...]), opts=dict(caption="update0"))
-                viz.image(visualize(sample[0, 5, ...]), opts=dict(caption="update2"))
-                viz.image(visualize(sample[0, 6, ...]), opts=dict(caption="update3"))
-                viz.image(visualize(sample[0, 8, ...]), opts=dict(caption="org0"))
 
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()
@@ -220,13 +193,13 @@ class TrainLoop:
             self.save()
 
     def run_step(self, batch, cond):
-        lossmse, losscls, lossrec, sample = self.forward_backward(batch, cond)
+        lossmse,  sample = self.forward_backward(batch, cond)
         took_step = self.mp_trainer.optimize(self.opt)
         if took_step:
             self._update_ema()
         self._anneal_lr()
         self.log_step()
-        return lossmse, losscls, lossrec, sample
+        return lossmse,  sample
 
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
@@ -237,17 +210,15 @@ class TrainLoop:
                 k: v[i : i + self.microbatch].to(dist_util.dev())
                 for k, v in cond.items()
             }
-         #   viz.image(visualize(micro[0, ...]), opts=dict(caption="input"))
+       
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
             compute_losses = functools.partial(
-            #    self.diffusion.training_losses,
-                self.diffusion.training_losses_cycle,
+                self.diffusion.training_losses,
                 self.ddp_model,
                 micro,
                 t,
-                self.classifier,
                 model_kwargs=micro_cond,
             )
 
@@ -267,16 +238,14 @@ class TrainLoop:
 
             loss = (losses["loss"] * weights).mean()
 
-            lossmse = 100*(losses["mse"] * weights).mean().detach()
-            losscls =0.1*( (losses["cls2"] * weights).mean().detach()+(losses["cls3"] * weights).mean().detach())
-            lossrec =100*( (losses["rec1"] * weights).mean().detach()+(losses["rec2"] * weights).mean().detach())
-
+            lossmse = (losses["mse"] * weights).mean().detach()
+           
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
             self.mp_trainer.backward(loss)
 
-            return lossmse.detach(), losscls.detach(), lossrec.detach(), sample
+            return lossmse.detach(),  sample
 
     def _update_ema(self):
         for rate, params in zip(self.ema_rate, self.ema_params):
