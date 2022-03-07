@@ -55,8 +55,7 @@ def main():
         ds,
         batch_size=args.batch_size,
         shuffle=True)
-   # data = iter(datal)
-      #  viz.image(visualize(img[0][0, 5, ...]), opts=dict(caption="img input krank5"))
+   
     model.load_state_dict(
         dist_util.load_state_dict(args.model_path, map_location="cpu")
     )
@@ -70,9 +69,11 @@ def main():
     classifier.load_state_dict(
         dist_util.load_state_dict(args.classifier_path)
     )
- #   classifier.load_state_dict(th.load(args.classifier_path))
-    print('loaded classifier')
 
+    print('loaded classifier')
+    p1 = np.array([np.array(p.shape).prod() for p in model.parameters()]).sum()
+    p2 = np.array([np.array(p.shape).prod() for p in classifier.parameters()]).sum()
+    print('pmodel', p1, 'pclass', p2)
 
 
     classifier.to(dist_util.dev())
@@ -102,36 +103,25 @@ def main():
     all_images = []
     all_labels = []
     for img in datal:
-    # print(img.shape)
-    #         print(label.shape)
-    #         break
-  #  while len(all_images) * args.batch_size < args.num_samples:
-   #
+
         model_kwargs = {}
+        
 
      #   img = next(data)  # should return an image from the dataloader "data"
         Labelmask = th.where(img[3] > 0, 1, 0)
-        
-        if (Labelmask * 1).sum() < 20:
-            continue
         print('label', img[2], (Labelmask * 1).sum())
+        
+        
         number=img[4][0]
-        print('number22', number)
-       # if number!='003487':
-       #   continue
+        if img[2]==0:
+            continue    #take only diseased images as input
+       
 
-
-#        if img[2] == 0:
-#            viz.image(visualize(img[0][0, 0, ...]), opts=dict(caption="img input gesund0"))
-#            viz.image(visualize(img[0][0, 1, ...]), opts=dict(caption="img input gesund1"))
-#            viz.image(visualize(img[0][0, 2, ...]), opts=dict(caption="img input gesund2"))
-#            viz.image(visualize(img[0][0, 3, ...]), opts=dict(caption="img input gesund3"))
-#        elif img[2] == 1:
-#            viz.image(visualize(img[0][0, 0, ...]), opts=dict(caption="img input krank0"))
-#            viz.image(visualize(img[0][0, 1, ...]), opts=dict(caption="img input krank1"))
-#            viz.image(visualize(img[0][0, 2, ...]), opts=dict(caption="img input krank2"))
-#            viz.image(visualize(img[0][0, 3, ...]), opts=dict(caption="img input krank3"))
-#            viz.image(visualize(img[3][0, ...]), opts=dict(caption="ground truth"))
+        viz.image(visualize(img[0][0, 0, ...]), opts=dict(caption="img input 0"))
+        viz.image(visualize(img[0][0, 1, ...]), opts=dict(caption="img input 1"))
+        viz.image(visualize(img[0][0, 2, ...]), opts=dict(caption="img input 2"))
+        viz.image(visualize(img[0][0, 3, ...]), opts=dict(caption="img input 3"))
+        viz.image(visualize(img[3][0, ...]), opts=dict(caption="ground truth"))
         if args.class_cond:
             classes = th.randint(
                 low=0, high=1, size=(args.batch_size,), device=dist_util.dev()
@@ -142,6 +132,9 @@ def main():
             diffusion.p_sample_loop_known if not args.use_ddim else diffusion.ddim_sample_loop_known
         )
         print('samplefn', sample_fn)
+        start = th.cuda.Event(enable_timing=True)
+        end = th.cuda.Event(enable_timing=True)
+        start.record()
         sample, x_noisy, org = sample_fn(
             model_fn,
             (args.batch_size, 4, args.image_size, args.image_size), img, org=img,
@@ -149,7 +142,14 @@ def main():
             model_kwargs=model_kwargs,
             cond_fn=cond_fn,
             device=dist_util.dev(),
+            noise_level=args.noise_level
         )
+        end.record()
+        th.cuda.synchronize()
+        th.cuda.current_stream().synchronize()
+
+
+        print('time for 1000', start.elapsed_time(end))
 
 
         viz.image(visualize(sample[0,0, ...]), opts=dict(caption="sampled output0"))
@@ -158,24 +158,7 @@ def main():
         viz.image(visualize(sample[0,3, ...]), opts=dict(caption="sampled output3"))
         
         difftot=abs(org[0, :4,...]-sample[0, ...]).sum(dim=0)
-        viz.image(visualize(difftot), opts=dict(caption="diff"))
-        plt.imshow(difftot.cpu(), cmap='jet')                 
-        plt.xticks([])
-        plt.yticks([])
-        viz.matplot(plt)
-#        viz.heatmap(visualize(abs(org[0,0, ...]-sample[0, 0,...])), opts=dict(caption="diff 0"))
-#        viz.heatmap(visualize(abs(org[0, 1, ...] - sample[0, 1, ...])), opts=dict(caption="diff 1"))
-#        viz.heatmap(visualize(abs(org[0, 2, ...] - sample[0, 2, ...])), opts=dict(caption="diff 2"))
-#        viz.heatmap(visualize(abs(org[0, 3, ...] - sample[0, 3, ...])), opts=dict(caption="diff 3"))
-#        viz.heatmap(visualize(difftot), opts=dict(caption="difftot"))
-        sample = ((sample + 1) * 127.5).clamp(0, 255).to(th.uint8)
-       # sample = sample.permute(0, 2, 3, 1)
-        sample = sample.contiguous()
-        print('sample', sample.shape, classes, 'classtarget', 'difftot', difftot.shape)
-        s=th.tensor(sample)
-        output=th.cat((sample, difftot[None,None,...]), dim=1)
-        print('output', output.shape)
-        th.save(output, './results_L250/scaling750_ddim1000_t250/' + str(number) + '_output')
+        viz.heatmap(visualize(difftot), opts=dict(caption="difftot"))
 
         gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
         dist.all_gather(gathered_samples, sample)  # gather not supported with NCCL
@@ -208,7 +191,9 @@ def create_argparser():
         use_ddim=False,
         model_path="",
         classifier_path="",
-        classifier_scale=10000,
+        classifier_scale=100,
+        noise_level=500,
+        dataset='brats'
     )
     defaults.update(model_and_diffusion_defaults())
     defaults.update(classifier_defaults())
@@ -218,4 +203,3 @@ def create_argparser():
 
 if __name__ == "__main__":
     main()
-
