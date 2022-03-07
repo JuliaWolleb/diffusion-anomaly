@@ -8,7 +8,7 @@ The implementation of Denoising Diffusion Probabilistic Models presented in the 
 
 ## Data
 
-We evaluated our method on the [BRATS2020 dataset](https://www.med.upenn.edu/cbica/brats2020/data.html), and on the [CheXpert dataset](https://stanfordmlgroup.github.io/competitions/chexpert/)
+We evaluated our method on the [BRATS2020 dataset](https://www.med.upenn.edu/cbica/brats2020/data.html), and on the [CheXpert dataset](https://stanfordmlgroup.github.io/competitions/chexpert/).
 A mini-example how the data needs to be stored can be found in the folder *data*.
 
 ## Usage
