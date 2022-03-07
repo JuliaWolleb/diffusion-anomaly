@@ -581,11 +581,7 @@ class GaussianDiffusion:
             classifier=classifier
         ):
             final = sample
-        if conditioning:
-            return final["sample"], x_noisy, org
-        else:
-
-            return final["sample"], x_noisy, img
+        return final["sample"], x_noisy, img
 
     def p_sample_loop_interpolation(
         self,
