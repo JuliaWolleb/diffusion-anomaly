@@ -45,11 +45,11 @@ Here, we will post a link to the pretrained models.
 
 ### FixedPoint-GAN
 
-We follow the implementation given in this [repo](https://github.com/mahfuzmohammad/Fixed-Point-GAN). We train the model for 150 epochs.  choose $\lambda$<sub>cls</sub>=1, \lambda<sub>gp</sub>=\lambda<sub>id</sub>=\lambda<sub>rec</sub>=10,  and train our model for 500 epochs. The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
+We follow the implementation given in this [repo](https://github.com/mahfuzmohammad/Fixed-Point-GAN). We train the model for 150 epochs.  choose λ<sub>cls</sub>=1, λ<sub>gp</sub>=λ<sub>id</sub>=λ<sub>rec</sub>=10,  and train our model for 150 epochs. The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
 
 ### VAE
 
-We follow the implementation given in this [repo](https://github.com/aubreychen9012/cAAE).  The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
+We follow the implementation given in this [repo](https://github.com/aubreychen9012/cAAE) and train the model for 500 epochs.  The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
 
 
 ### DDPM
