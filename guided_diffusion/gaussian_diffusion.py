@@ -234,7 +234,7 @@ class GaussianDiffusion:
             q(x_{t-1} | x_t, x_0)
 
         """
-        x_t = x_t[:, :4, ...]
+       
         assert x_start.shape == x_t.shape
         posterior_mean = (
             _extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
@@ -278,10 +278,10 @@ class GaussianDiffusion:
             model_kwargs = {}
 
         B, C = x.shape[:2]
-        C=4
+        
         assert t.shape == (B,)
         model_output = model(x, self._scale_timesteps(t), **model_kwargs)
-        x = x[:, :4, ...]
+        
         if self.model_var_type in [ModelVarType.LEARNED, ModelVarType.LEARNED_RANGE]:
             assert model_output.shape == (B, C * 2, *x.shape[2:])
             model_output, model_var_values = th.split(model_output, C, dim=1)
@@ -347,110 +347,7 @@ class GaussianDiffusion:
             "log_variance": model_log_variance,
             "pred_xstart": pred_xstart,
         }
-    def p_mean_variance2(
-        self, model, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None
-    ):
-        """
-        Apply the model to get p(x_{t-1} | x_t), as well as a prediction of
-        the initial x, x_0.
-
-        :param model: the model, which takes a signal and a batch of timesteps
-                      as input.
-        :param x: the [N x C x ...] tensor at time t.
-        :param t: a 1-D Tensor of timesteps.
-        :param clip_denoised: if True, clip the denoised signal into [-1, 1].
-        :param denoised_fn: if not None, a function which applies to the
-            x_start prediction before it is used to sample. Applies before
-            clip_denoised.
-        :param model_kwargs: if not None, a dict of extra keyword arguments to
-            pass to the model. This can be used for conditioning.
-        :return: a dict with the following keys:
-                 - 'mean': the model mean output.
-                 - 'variance': the model variance output.
-                 - 'log_variance': the log of 'variance'.
-                 - 'pred_xstart': the prediction for x_0.
-
-
-        """
-        if model_kwargs is None:
-            model_kwargs = {}
-
-        B, C = x.shape[:2]
-        C=4
-
-        assert t.shape == (B,)
-        Model_output = model(x, self._scale_timesteps(t), **model_kwargs)
-        x = x[:, :4, ...]
-        if self.model_var_type in [ModelVarType.LEARNED, ModelVarType.LEARNED_RANGE]:
-            assert Model_output.shape == (B, C * 3, *x.shape[2:])
-            model_output, model_var_values, update = th.split(Model_output, C, dim=1)
-            if self.model_var_type == ModelVarType.LEARNED:
-                model_log_variance = model_var_values
-                model_variance = th.exp(model_log_variance)
-                print('LEARNED VAR VALUES')
-            else:
-                min_log = _extract_into_tensor(
-                    self.posterior_log_variance_clipped, t, x.shape
-                )
-                max_log = _extract_into_tensor(np.log(self.betas), t, x.shape)
-                # The model_var_values is [-1, 1] for [min_var, max_var].
-                frac = (model_var_values + 1) / 2
-                model_log_variance = frac * max_log + (1 - frac) * min_log
-                model_variance = th.exp(model_log_variance)
-        else:
-         #   model_variance, model_log_variance, update = {
-            model_variance, model_log_variance = {
-                # for fixedlarge, we set the initial (log-)variance like so
-                # to get a better decoder log likelihood.
-                ModelVarType.FIXED_LARGE: (
-                    np.append(self.posterior_variance[1], self.betas[1:]),
-                    np.log(np.append(self.posterior_variance[1], self.betas[1:])),
-                ),
-                ModelVarType.FIXED_SMALL: (
-                    self.posterior_variance,
-                    self.posterior_log_variance_clipped,
-                ),
-            }[self.model_var_type]
-            model_variance = _extract_into_tensor(model_variance, t, x.shape)
-            model_log_variance = _extract_into_tensor(model_log_variance, t, x.shape)
-
-        def process_xstart(x):
-            if denoised_fn is not None:
-                x = denoised_fn(x)
-            if clip_denoised:
-                return x.clamp(-1, 1)
-            return x
-
-        if self.model_mean_type == ModelMeanType.PREVIOUS_X:
-            pred_xstart = process_xstart(
-                self._predict_xstart_from_xprev(x_t=x, t=t, xprev=model_output)
-            )
-            model_mean = model_output
-        elif self.model_mean_type in [ModelMeanType.START_X, ModelMeanType.EPSILON]:
-            if self.model_mean_type == ModelMeanType.START_X:
-                pred_xstart = process_xstart(model_output)
-            else:
-                pred_xstart = process_xstart(
-                    self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
-                )
-            model_mean, _, _ = self.q_posterior_mean_variance(
-                x_start=pred_xstart, x_t=x, t=t
-            )
-        else:
-            raise NotImplementedError(self.model_mean_type)
-
-        assert (
-            model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape
-        )
-        return {
-            "mean": model_mean,
-            "variance": model_variance,
-            "log_variance": model_log_variance,
-            "pred_xstart": pred_xstart,
-            "modeloutput": Model_output,
-            "update": update
-        }
-
+  
     def _predict_xstart_from_eps(self, x_t, t, eps):
         x_t = x_t[:, :4, ...]
         assert x_t.shape == eps.shape
@@ -494,7 +391,6 @@ class GaussianDiffusion:
         """
 
 
-      #  viz.image(visualize(gradient.cpu()[0, ...]), opts=dict(caption="gradient"))
         if update is not None:
             print('CONDITION MEAN UPDATE NOT NONE')
             stdupdate=standardizetensor(update)
@@ -502,9 +398,8 @@ class GaussianDiffusion:
             new_mean = (
                 p_mean_var["mean"].detach().float() + p_mean_var["variance"].detach() * update.float()
                 )
-           # else:
-            #    new_mean=p_mean_var["mean"].float()
             a=update
+
         else:
            a, gradient = cond_fn(x, self._scale_timesteps(t), **model_kwargs)
            new_mean = (
@@ -513,34 +408,6 @@ class GaussianDiffusion:
 
         return a, new_mean
 
-    def condition_score(self, cond_fn, p_mean_var, x, t,  model_kwargs=None):
-
-       #
-        """
-        Compute what the p_mean_variance output would have been, should the
-        model's score function be conditioned by cond_fn.
-
-        See condition_mean() for details on cond_fn.
-
-        Unlike condition_mean(), this instead uses the conditioning strategy
-        from Song et al (2020).
-        """
-        alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
-        print('self._scale_timesteps(t)',self._scale_timesteps(t))
-        eps = self._predict_eps_from_xstart(x, t, p_mean_var["pred_xstart"])
-      #  eps = eps - (1 - alpha_bar).sqrt() * cond_fn(
-       #     x, self._scale_timesteps(t).long(), **model_kwargs)
-        print('eps0', eps.max(), eps.min())
-      #  print('update', p_mean_var["update"].max(), p_mean_var["update"].min())
-
-      #  eps = eps.detach() - (1 - alpha_bar).sqrt() *p_mean_var["update"]*0
-        print('eps1', eps.max(), eps.min())
-        out = p_mean_var.copy()
-        out["pred_xstart"] = self._predict_xstart_from_eps(x.detach(), t.detach(), eps)
-        out["mean"], _, _ = self.q_posterior_mean_variance(
-            x_start=out["pred_xstart"], x_t=x, t=t
-        )
-        return out#, eps
 
 
     def condition_score2(self, cond_fn, p_mean_var, x, t, model_kwargs=None):
@@ -572,68 +439,6 @@ class GaussianDiffusion:
         channels = self.channels
         return self.p_sample_loop_known(model,(batch_size, channels, image_size, image_size), img)
 
-    def p_sample2(
-        self,
-        model,
-        x,
-        t,
-        clip_denoised=True,
-        denoised_fn=None,
-        cond_fn=True,
-        org=None,
-        model_kwargs=None,
-        update_eps=False
-    ):
-        """
-        Sample x_{t-1} from the model at the given timestep.
-
-        :param model: the model to sample from.
-        :param x: the current tensor at x_{t-1}.
-        :param t: the value of t, starting at 0 for the first diffusion step.
-        :param clip_denoised: if True, clip the x_start prediction to [-1, 1].
-        :param denoised_fn: if not None, a function which applies to the
-            x_start prediction before it is used to sample.
-        :param cond_fn: if not None, this is a gradient function that acts
-                        similarly to the model.
-        :param model_kwargs: if not None, a dict of extra keyword arguments to
-            pass to the model. This can be used for conditioning.
-        :return: a dict containing the following keys:
-                 - 'sample': a random sample from the model.
-                 - 'pred_xstart': a prediction of x_0.
-        """
-        out = self.p_mean_variance2(
-            model,
-            x,
-            t,
-            clip_denoised=clip_denoised,
-            denoised_fn=denoised_fn,
-            model_kwargs=model_kwargs,
-        )
-        noise = th.randn_like(x[:,:4,...])
-        nonzero_mask = (
-            (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
-        )  # no noise when t == 0
-        update = out['update']
-        print('updatemaxmim', out['update'].max(), out['update'].min())
-
-        if cond_fn == True:
-            print('UUSSEE cond_fn')
-            a, out["mean"] = self.condition_mean(cond_fn, out, x, t, update=update,
-                                                  model_kwargs=model_kwargs)
-
-        else:
-            print('NOO use cond_fn')
-        # alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x_t.shape)
-
-        sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"].detach()) * noise
-
-           # print('used cond_fn', a.shape, out["mean"].shape)
-          #  viz.image(visualize(out["mean"].cpu()[0, ...]), opts=dict(caption="outmean"))
-          #  viz.image(visualize(a.cpu()[0, ...]), opts=dict(caption="a"))
-
-
-
-        return {"sample": sample, "pred_xstart": out["pred_xstart"], "saliency": out["update"]}
 
     def p_sample_loop(
         self,
@@ -741,11 +546,9 @@ class GaussianDiffusion:
         cond_fn=None,
         model_kwargs=None,
         device=None,
+        noise_level=500,
         progress=False,
-        conditioning=False,
-        conditioner = None,
-        classifier=None,
-        cyclic=False
+        classifier=None
     ):
         if device is None:
             device = next(model.parameters()).device
@@ -761,13 +564,12 @@ class GaussianDiffusion:
         noise = th.randn_like(img[:, :4, ...]).to(device)
         x_noisy = self.q_sample(x_start=img[:, :4, ...], t=t, noise=noise).to(device)
         x_noisy = torch.cat((x_noisy, img[:, 4:, ...]), dim=1)
-        print('xnoisy', x_noisy.shape)
-        #viz.image(visualize(x_noisy.cpu()[0, ...]), opts=dict(caption="xnoisy" ))
-
+        
+        
         for sample in self.p_sample_loop_progressive(
             model,
             shape,
-            time=t,
+            time=noise_level,
             noise=x_noisy,
             clip_denoised=clip_denoised,
             denoised_fn=denoised_fn,
@@ -776,14 +578,11 @@ class GaussianDiffusion:
             model_kwargs=model_kwargs,
             device=device,
             progress=progress,
-            conditioning=conditioning,
-            conditioner=conditioner,
-            classifier=classifier,
-            cyclic=cyclic
+            classifier=classifier
         ):
             final = sample
         if conditioning:
-            return final["sample"], x_noisy, org#, final["conditioner"]
+            return final["sample"], x_noisy, org
         else:
 
             return final["sample"], x_noisy, img
@@ -844,8 +643,7 @@ class GaussianDiffusion:
         model_kwargs=None,
         device=None,
         progress=False,
-        conditioning=False,
-        conditioner=None, classifier=None, cyclic=False):
+        classifier=None):
         """
         Generate samples from the model and yield intermediate samples from
         each timestep of diffusion.
@@ -862,10 +660,7 @@ class GaussianDiffusion:
             img = noise
         else:
             img = th.randn(*shape, device=device)
-       # indices = list(range(self.num_timesteps))[::-1]
-        orghigh = img[:, 4:, ...]
-        print('orghigh', orghigh.shape)
-
+      
         indices = list(range(time))[::-1]
         print('indices', indices)
         if progress:
@@ -873,66 +668,14 @@ class GaussianDiffusion:
             from tqdm.auto import tqdm
 
             indices = tqdm(indices)
-        if cyclic==True:
-            for i in indices:
+        
+          
+        for i in indices:
                 t = th.tensor([i] * shape[0], device=device)
 
                 with th.no_grad():
-                    # if img.shape != (1, 8, 256, 256):
-                    #     number = np.random.randint(2, size=1)
-                    #     number = torch.tensor(np.float32(number)).to(device)
-                    #     img = torch.cat((img, orghigh*number), dim=1)
-                    #     gshapeafter', img.shape)
-                    if i % 50 == 0:
-                        viz.image(visualize(img[0, 0, ...]), opts=dict(caption="sampledi"))
-
-                    out = self.p_sample2(
-                        model,
-                        img,
-                        t,
-                        clip_denoised=clip_denoised,
-                        denoised_fn=denoised_fn,
-                        cond_fn=cond_fn,
-                        # org=org,
-                        model_kwargs=model_kwargs,
-                        #   update_eps=False
-                    )
-                    yield out
-
-                    img = out["sample"]
-                    update=out['saliency']
-
-                    # print('img', img.shape)
-                    # r, g, b = img[0,0, :, :], img[0,1, :, :], img[0,2, :, :]
-                    if i % 10 == 0:
-                        print(i)
-                    if i %100 == 0:
-                        viz.image(visualize(img[0, 0, ...]), opts=dict(caption=str(i)))
-                        viz.image(visualize(img[0, 1, ...]), opts=dict(caption=str(i)))
-                        viz.image(visualize(img[0, 2, ...]), opts=dict(caption=str(i)))
-                        viz.image(visualize(img[0, 3, ...]), opts=dict(caption=str(i)))
-                        viz.image(visualize(out["saliency"][0, 0, ...]), opts=dict(caption='update0'))
-                        viz.image(visualize(out["saliency"][0, 3, ...]), opts=dict(caption='update3'))
-                #    number=abs(i-1000)
-                #  name=(str(number).zfill(5))
-        # save_image(gray, './fake_images_classcond/k/krank/'+str(k)+'.png')
-
-        else:
-         for k in range(0,1):
-           print('k0', k)
-           #img = th.randn(*shape, device=device)
-           for i in indices:
-                t = th.tensor([i] * shape[0], device=device)
-
-                with th.no_grad():
-                    if img.shape != (1, 8, 256, 256):
-                        number = np.random.randint(2, size=1)
-                        number = torch.tensor(np.float32(number)).to(device)
-                        img = torch.cat((img, orghigh), dim=1)
-                    if i % 50 == 0:
-                        viz.image(visualize(img[0, 0, ...]), opts=dict(caption="sampledi"))
-
-
+                    
+                   
                     out = self.p_sample(
                         model,
                         img,
@@ -940,26 +683,19 @@ class GaussianDiffusion:
                         clip_denoised=clip_denoised,
                         denoised_fn=denoised_fn,
                         cond_fn=cond_fn,
-                        #org=org,
                         model_kwargs=model_kwargs,
-                     #   update_eps=False
                     )
                     yield out
                     img = out["sample"]
 
-                   # print('img', img.shape)
-                   # r, g, b = img[0,0, :, :], img[0,1, :, :], img[0,2, :, :]
-                    if i%10==0:
-                        print(i)
                     if i%100==0:
+                     print('i', i)
                      viz.image(visualize(img[0,0,...]), opts=dict(caption=str(i)))
                      viz.image(visualize(img[0, 1,...]), opts=dict(caption=str(i)))
                      viz.image(visualize(img[0, 2,...]), opts=dict(caption=str(i)))
                      viz.image(visualize(img[0, 3,...]), opts=dict(caption=str(i)))
                      viz.image(visualize(out["saliency"][0,0,...]), opts=dict(caption='saliency'))
-                 #    number=abs(i-1000)
-                   #  name=(str(number).zfill(5))
-          # save_image(gray, './fake_images_classcond/k/krank/'+str(k)+'.png')
+              
 
     def ddim_sample(
             self,
@@ -1150,6 +886,7 @@ class GaussianDiffusion:
             cond_fn=None,
             model_kwargs=None,
             device=None,
+            noise_level=500,
             progress=False,
             conditioning=False,
             conditioner=None,
@@ -1176,7 +913,7 @@ class GaussianDiffusion:
         for sample in self.ddim_sample_loop_progressive(
             model,
             shape,
-            time=250,#t,
+            time=noise_level,
             noise=x_noisy,
             clip_denoised=clip_denoised,
             denoised_fn=denoised_fn,
@@ -1193,7 +930,6 @@ class GaussianDiffusion:
         viz.image(visualize(final["sample"].cpu()[0,3, ...]), opts=dict(caption="final 3" ))
 
 
-     #   return final["sample"]
         return final["sample"], x_noisy, img
 
 
@@ -1235,7 +971,7 @@ class GaussianDiffusion:
 
         for i in indices:
 
-            k=abs(249-i)
+            k=abs(time-1-i)
             if k%20==0:
                 print('k',k)
 
@@ -1254,10 +990,7 @@ class GaussianDiffusion:
 
                 yield out
                 img = out["sample"]
-              #  if i % 100 == 0:
-                #    viz.image(visualize(out["sample"].cpu()[0, 0,...]), opts=dict(caption="reversesample" + str(i)))
-       # # img=standardize(img)
-       #  print('transformedimg', img.shape, img.max(), img.min())
+
         viz.image(visualize(img.cpu()[0,0, ...]), opts=dict(caption="reversesample"))
         for i in indices:
                 t = th.tensor([i] * shape[0], device=device)
@@ -1275,20 +1008,6 @@ class GaussianDiffusion:
                 yield out
                 img = out["sample"]
                 saliency=out['saliency']
-                if i % 70 == 0:
-                    # j=500-i
-                     print('i', i)
-                  #   A=visualize(np.array(saliency.cpu()[0, 2, ...]))
-                     viz.image(visualize(img.cpu()[0, 3,...]), opts=dict(caption="sample3_" + str(i)))
-                  #   viz.image(visualize(saliency.cpu()[0, 1, ...]), opts=dict(caption="sample1_" + str(i)))
-                   #  viz.image(visualize(saliency.cpu()[0, 2, ...]), opts=dict(caption="sample2_" + str(i)))
-               #      im = Image.fromarray(A)
-                 #    name=(f"{j:03d}.png")
-                 #    plt.imsave('./gradientmovie/'+name, A)
-
-                     #im.save('./gradientmovie/'+name)
-                  #   viz.image(visualize(saliency.cpu()[0, 3, ...]), opts=dict(caption="sample3_" + str(i)))
-
 
     def _vb_terms_bpd(
         self, model, x_start, x_t, t, clip_denoised=True, model_kwargs=None
@@ -1325,6 +1044,8 @@ class GaussianDiffusion:
         output = th.where((t == 0), decoder_nll, kl)
         return {"output": output, "pred_xstart": out["pred_xstart"]}
 
+
+   # def training_losses(self, model, x_start, t, model_kwargs=None, noise=None):
     def training_losses(self, model,  x_start, t, classifier=None, model_kwargs=None, noise=None):
         """
         Compute training losses for a single timestep.
@@ -1340,16 +1061,8 @@ class GaussianDiffusion:
         if model_kwargs is None:
             model_kwargs = {}
         if noise is None:
-            noise = th.randn_like(x_start[:, :4, ...])
-        # viz.image(visualize(x_start[0, 0, ...]), opts=dict(caption="x00"))
-        # viz.image(visualize(x_start[0, 1, ...]), opts=dict(caption="x00"))
-        x_t = self.q_sample(x_start[:, :4, ...], t, noise=noise)
-        x_t = torch.cat((x_t, x_start[:, 4:,  ...]), dim=1)
-        # viz.image(visualize(x_t[0, 0, ...]), opts=dict(caption="xt0"))
-        # viz.image(visualize(x_t[0,4,...]), opts=dict(caption="xt5"))
-        # viz.image(visualize(x_t[0, 5, ...]), opts=dict(caption="xt5"))
-        # viz.image(visualize(x_t[0, 6, ...]), opts=dict(caption="xt6"))
-        # # viz.image(visualize(x_t[0, 7, ...]), opts=dict(caption="xt7"))
+            noise = th.randn_like(x_start)
+        x_t = self.q_sample(x_start, t, noise=noise)
 
         terms = {}
 
@@ -1372,16 +1085,15 @@ class GaussianDiffusion:
                 ModelVarType.LEARNED_RANGE,
             ]:
                 B, C = x_t.shape[:2]
-                C=4
-                assert model_output.shape == (B, C * 3, *x_t.shape[2:])
-                model_output, model_var_values,  update = th.split(model_output, C, dim=1)
+                assert model_output.shape == (B, C * 2, *x_t.shape[2:])
+                model_output, model_var_values = th.split(model_output, C, dim=1)
                 # Learn the variance using the variational bound, but don't let
                 # it affect our mean prediction.
-                frozen_out = th.cat([model_output.detach(), model_var_values, update.detach()], dim=1)
+                frozen_out = th.cat([model_output.detach(), model_var_values], dim=1)
                 terms["vb"] = self._vb_terms_bpd(
                     model=lambda *args, r=frozen_out: r,
-                    x_start=x_start[:, :4, ...],
-                    x_t=x_t[:, :4, ...],
+                    x_start=x_start,
+                    x_t=x_t,
                     t=t,
                     clip_denoised=False,
                 )["output"]
@@ -1392,200 +1104,24 @@ class GaussianDiffusion:
 
             target = {
                 ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
-                    x_start=x_start[:,:4,...], x_t=x_t[:,:4,...], t=t
+                    x_start=x_start, x_t=x_t, t=t
                 )[0],
-                ModelMeanType.START_X: x_start[:,:4,...],
+                ModelMeanType.START_X: x_start,
                 ModelMeanType.EPSILON: noise,
             }[self.model_mean_type]
-            assert model_output.shape == target.shape == x_start[:,:4,...].shape
+            assert model_output.shape == target.shape == x_start.shape
             terms["mse"] = mean_flat((target - model_output) ** 2)
-
             if "vb" in terms:
                 terms["loss"] = terms["mse"] + terms["vb"]
             else:
                 terms["loss"] = terms["mse"]
         else:
             raise NotImplementedError(self.loss_type)
-        terms["cls2"]=0 ;terms["cls3"] =0; terms["rec1"]=0 ; terms["rec2"]=0
+
         return (terms, model_output)
 
-    def training_losses_cycle(self, model,  x_start, t, classifier, model_kwargs=None, noise=None, update_eps=True, cond_fn=True, apply_cycle=True):
-        """
-        Compute training losses for a single timestep.
 
-        :param model: the model to evaluate loss on.
-        :param x_start: the [N x C x ...] tensor of inputs.
-        :param t: a batch of timestep indices.
-        :param model_kwargs: if not None, a dict of extra keyword arguments to
-            pass to the model. This can be used for conditioning.
-        :param noise: if specified, the specific Gaussian noise to try to remove.
-        :return: a dict with the key "loss" containing a tensor of shape [N].
-                 Some mean or variance settings may also have other keys.
-        """
-        device=model.device
-        print('device', device)
-        t=t.to(device)
-        x_start=x_start.float().to(device)
-        print('x_start', x_start.shape)
-        if model_kwargs is None:
-            model_kwargs = {}
-        if noise is None:
-            noise = th.randn_like(x_start[:, :4, ...])
-
-        x_t = self.q_sample(x_start[:, :4, ...], t, noise=noise)
-        x_t = torch.cat((x_t, x_start[:, 4:, ...]), dim=1)
-        nonzero_mask = (
-            (t != 0).float().view(-1, *([1] * (len(x_start[:,:4,...].shape) - 1)))
-        )
-
-        terms = {}
-        print('lossttype',self.loss_type)
-        sample3=0
-
-        if self.loss_type == LossType.MSE or self.loss_type == LossType.RESCALED_MSE:
-            print('y0', model_kwargs['y'])
-            y=model_kwargs['y']
-            y2 = abs(model_kwargs['y'] - 1)
-
-            model_kwargs2 = model_kwargs.copy()
-            model_kwargs2['y'] = y2
-            model_kwargs['y'] = y
-            print('y',  model_kwargs['y'],'y2',  model_kwargs2['y'])
-
-            out = self.p_mean_variance2(
-                model, x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)  # change to original class
-            M=out["modeloutput"]
-            if self.model_var_type in [
-                ModelVarType.LEARNED,
-                ModelVarType.LEARNED_RANGE,
-            ]:
-                B, C = x_t.shape[:2]
-                C=4
-                assert M.shape == (B, C * 3, *x_t.shape[2:])
-                model_output, model_var_values, update = th.split(M, C, dim=1)
-                # Learn the variance using the variational bound, but don't let
-                # it affect our mean prediction.
-                frozen_out = th.cat([model_output.detach(), model_var_values, update.detach()], dim=1)
-                terms["vb"] = self._vb_terms_bpd(
-                    model=lambda *args, r=frozen_out: r,
-                    x_start=x_start[:, :4, ...],
-                    x_t=x_t[:, :4, ...],
-                    t=t,
-                    clip_denoised=False,
-                )["output"]
-                if self.loss_type == LossType.RESCALED_MSE:
-                    # Divide by 1000 for equivalence with initial implementation.
-                    # Without a factor of 1/1000, the VB term hurts the MSE term.
-                    terms["vb"] *= self.num_timesteps / 1000.0
-            print('selfmodelmeantype',self.model_mean_type)
-            target = {
-                ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
-                    x_start=x_start[:,:4,...], x_t=x_t[:,:4,...], t=t
-                )[0],
-                ModelMeanType.START_X: x_start[:,:4,...],
-                ModelMeanType.EPSILON: noise,
-            }[ModelMeanType.PREVIOUS_X]#[self.model_mean_type]
-            print('mdoeloutput2', )
-            assert model_output.shape == target.shape
-
-
-            if update_eps==True:
-
-
-                if cond_fn == True:
-                    print('use cond_fn')
-                    #   out1, eps1 = self.condition_score(cond_fn, Model, x_t, t, model_kwargs=model_kwargs)
-                    #  out1, eps1 = self.condition_mean(cond_fn, Model, x_t, t, model_kwargs=model_kwargs)
-                    a, out["mean"] = self.condition_mean(cond_fn, out, x_t[:, :4, ...], t, update=update, model_kwargs=model_kwargs)
-
-
-                else:
-                    print('NOO use cond_fn')
-                sample1 = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
-                terms["mse"] = mean_flat((target - sample1) ** 2)
-
-                #   viz.image(visualize(sample1[0, 0, ...]), opts=dict(caption="sample1" + str(t)))
-                print('update', update.max(), update.min())
-
-                out2 = self.p_mean_variance2(
-                    model, x_t, self._scale_timesteps(t), model_kwargs=model_kwargs2)  # change class!!!
-
-                if cond_fn==True:
-                    print('use cond_fn')
-                    a, out2["mean"] = self.condition_mean(cond_fn, out2, x_t, t, update=out2['update'], model_kwargs=model_kwargs2)
-                   # out2, eps2 = self.condition_score(cond_fn, Model2, x_t, t, model_kwargs=model_kwargs2)       #change class!
-                else:
-                    print('NOO use cond_fn')
-
-             #   alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x_t.shape)
-              #  alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x_t.shape)
-              #  sigma=0*x_t
-               # print('eps2', eps2.max(), eps2.min())
-                sample2 = out2["mean"] + nonzero_mask * th.exp(0.5 * out2["log_variance"].detach()) * noise
-              #  sample2 = (
-               #         out2["pred_xstart"] * th.sqrt(alpha_bar_prev)
-               #         + th.sqrt(1 - alpha_bar_prev - sigma ** 2) * eps2)
-
-                logits2 = classifier(sample2, timesteps=t)
-                print('logits2', logits2)
-                #  losscls =F.cross_entropy(logits, model_kwargs2['y'], reduction="none")
-                losscls2 = F.cross_entropy(logits2, model_kwargs2['y'], reduction="none")  #change class!
-                terms["cls2"] = losscls2
-
-            if apply_cycle==True:
-                sample_j=self.q_sample(sample2, t=t*0, noise=noise)
-                terms["rec1"] = 0#mean_flat((sample_j - x_t[:,:4,...]) ** 2)
-
-              #  viz.image(visualize(sample_j[0, ...]), opts=dict(caption="samplej"))
-                #diff=abs(sample_j-x_t)
-
-                sample_j = torch.cat(( sample_j, x_start[:, 4:, ...]), dim=1)
-                out3 = self.p_mean_variance2(
-                    model, sample_j, self._scale_timesteps(t), model_kwargs=model_kwargs)  #change to original class
-                if cond_fn == True:
-                    print('use cond_fn')
-                    a, out3["mean"] = self.condition_mean(cond_fn, out3, x_t, t, update=out3['update'],
-                                                          model_kwargs=model_kwargs2)
-
-                else:
-                    print('NOO use cond_fn')
-               # alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x_t.shape)
-
-
-                sample3 = out3["mean"] + nonzero_mask * th.exp(0.5 * out3["log_variance"].detach()) * noise
-                # sample3 = (
-                #         out3["pred_xstart"] * th.sqrt(alpha_bar_prev)
-                #         + th.sqrt(1 - alpha_bar_prev) * eps3)
-                #
-
-                logits3 = classifier(sample3, timesteps=t)
-                losscls3 = F.cross_entropy(logits3, model_kwargs['y'] , reduction="none")
-                terms["cls3"] = losscls3
-                terms["rec2"] = mean_flat((sample3 - sample1) ** 2)
-
-            #   a, mean3 = self.condition_mean(
-            #           self.training_losses.scond_fn, model_output3, x_t,  model_kwargs)
-
-         #   viz.image(visualize(model_output[0, ...]), opts=dict(caption="mdoleoutput"))
-        #    viz.image(visualize(target[0, ...]), opts=dict(caption="target"))
-         #   viz.image(visualize(sample[0, ...]), opts=dict(caption="sample3"))
-          #  viz.image(visualize(update[0, ...]), opts=dict(caption="update"))
-
-            if "vb" in terms:
-                terms["loss"] =  100*terms["mse"]+100*terms["vb"]+0.1*terms["cls2"]+0.1*terms["cls3"]+100*terms["rec1"]+100*terms["rec2"]
-                print('ALL LOSS TERMS ADDED')
-            else:
-                terms["loss"] = 100*terms["mse"]+0.1*terms["cls2"]+0.1*terms["cls3"]+100*terms["rec1"]+100*terms["rec2"]
-        else:
-            raise NotImplementedError(self.loss_type)
-      #  a = th.autograd.grad(losscls3[0].sum(), sample,retain_graph=True)
-      #  print('a', a[0].sum())
-        sample = torch.cat((sample3, update, x_start), dim=1)
-
-       # losscls3[0].backward(retain_graph=True)
-       # grad=th.autograd.grad(losscls3[0], sample[0])
-      #  grad=sample.grad
-        return (terms, sample)  # (terms, org)
+  
 
 
     def _prior_bpd(self, x_start):
@@ -1625,7 +1161,6 @@ class GaussianDiffusion:
                  - mse: an [N x T] tensor of epsilon MSEs for each timestep.
         """
         device = x_start.device
-       # device = next(model.parameters()).device
         batch_size = x_start.shape[0]
 
         vb = []
@@ -1682,3 +1217,4 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)
+
