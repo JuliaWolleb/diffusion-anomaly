@@ -3,7 +3,6 @@ import random
 from pathlib import Path
 from PIL import Image
 import blobfile as bf
-#from mpi4py import MPI
 import numpy as np
 import torch as th
 from torch.utils.data import DataLoader, Dataset
@@ -11,9 +10,8 @@ from torchvision import transforms
 from .train_util import visualize
 from visdom import Visdom
 viz = Visdom(port=8850)
-blank = np.ones((256, 256))
 from scipy import ndimage
-#image_window = viz.image(blank)
+
 
 def load_data(
     *,
@@ -59,14 +57,13 @@ def load_data(
 
         sorted_classes = {x: i for i, x in enumerate(sorted(set(class_names)))}
         classes = [sorted_classes[x] for x in class_names]
-        print('classes',classes)
-   # print('mpishard', MPI.COMM_WORLD.Get_rank(), 'numshards', MPI.COMM_WORLD.Get_size())
+
     dataset = ImageDataset(
         image_size,
         data_dir,
         classes=classes,
-        shard=0,#MPI.COMM_WORLD.Get_rank(),
-        num_shards=1,#MPI.COMM_WORLD.Get_size(),
+        shard=0,
+        num_shards=1,
         random_crop=random_crop,
         random_flip=random_flip,
     )
@@ -109,7 +106,6 @@ class ImageDataset(Dataset):
     ):
         super().__init__()
         self.resolution = resolution
-        #self.local_images = image_paths[p for ext in exts for p in Path(f'{image_paths}').glob(f'**/*.{ext}')]
         self.local_images = [p for ext in exts for p in Path(f'{image_paths}').glob(f'**/*.{ext}')]
 
 
@@ -124,87 +120,15 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         path = self.local_images[idx]
 
-
-
-     #   with bf.BlobFile(path, "rb") as f:
-          #  pil_image = Image.open(f)
-          #  pil_image.load()
-      #  img = Image.open(path)
-      #  numpy_img = np.array(img)
         numpy_img = np.load(path)
-      #  numpy_img=visualize(numpy_img)
-        print('path', path)
-      #  numpy_img = (visualize(numpy_img[...,0]) * 255).astype(np.uint8)
-       # print('npmi', numpy_img.shape)
-        # viz.image(visualize(numpy_img[1, :, :]), opts=dict(caption="input1"))
-        # viz.image(visualize(numpy_img[2, :, :]), opts=dict(caption="input2"))
-        # viz.image(visualize(numpy_img[3, :, :]), opts=dict(caption="input3"))
-        # viz.image(visualize(numpy_img[4, :, :]), opts=dict(caption="input4"))
+        arr = visualize(numpy_img).astype(np.float32)
 
-   #     numpy_img=np.swapaxes(numpy_img, 0,2)
-    #    numpy_img = np.swapaxes(numpy_img, 0, 1)
-    #    pil_image = Image.fromarray((numpy_img[...,:3] * 255).astype(np.uint8))#.convert('RGB')
-        pil_image = Image.fromarray((numpy_img[ ...,0] * 255).astype(np.uint8)).convert('RGB')
-
-        if self.random_crop:
-            arr = random_crop_arr(pil_image, self.resolution)
-        else:
-            arr = center_crop_arr(pil_image, self.resolution)
-
-          #  arr = np.array(pil_image)
-        #    arr=zeropatch(pil_image, self.resolution)
-
-
-
-        if self.random_flip and random.random() < 0.5:
-            arr = arr[:, ::-1]
-
-        arr = arr.astype(np.float32) / 127.5 - 1
-        lowpass = ndimage.gaussian_filter(arr, 3)
-        highpass = arr - lowpass
-        # if self.local_classes[idx] == 0:
-        #     arr=arr*0
-        # #     arr=th.zeros(256,256,3)
-        #     print('zero', arr.max(), arr.min())
-        # elif self.local_classes[idx] == 1:
-        #     arr = th.ones(256, 256, 3)
-        #     print('one', arr.max(), arr.min())
         out_dict = {}
         if self.local_classes is not None:
             out_dict["y"] = np.array(self.local_classes[idx], dtype=np.int64)
-         #   print(out_dict["y"] , path)
-        return np.transpose(arr, [2, 0, 1]), out_dict
+            out_dict["path"]=name
 
-# class ImageDataset(Dataset):
-#     def __init__(self, image_size, folder, classes=None, shard=0,
-#          num_shards=1,         random_crop=False,
-#          random_flip=True, exts = ['jpg', 'jpeg', 'png', 'npy']):
-#         super().__init__()
-#         self.folder = folder
-#         print('folder', folder)
-#         self.image_size = image_size
-#         self.paths = [p for ext in exts for p in Path(f'{folder}').glob(f'**/*.{ext}')]
-#         print('paths', self.paths)
-#         self.transform = transforms.Compose([
-#            # transforms.Resize(image_size),
-#           #  transforms.RandomHorizontalFlip(),
-#           #  transforms.CenterCrop(image_size),
-#            # TransposeNumpy([1, 2, 0]),
-#             transforms.ToTensor(),
-#          #   transforms.Lambda(lambda t: (t * 2) - 1)
-#         ])
-#
-#     def __len__(self):
-#         return len(self.paths)
-#
-#     def __getitem__(self, index):
-#         path = self.paths[index]
-#         #img = Image.open(path)
-#         img = torch.from_numpy(np.load(path))
-#         y=torch.transpose(img,0,2).float()#self.transform(img)
-#         y=torch.transpose(y,1,2)
-#         return y,0
-#
+        return np.transpose(arr, [2, 0, 1]), out_dict
 
 
 def center_crop_arr(pil_image, image_size):
