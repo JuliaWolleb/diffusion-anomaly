@@ -45,20 +45,18 @@ class BRATSDataset(torch.utils.data.Dataset):
         out = []
         filedict = self.database[x]
         for seqtype in self.seqtypes:
-            number=filedict['t1'].split('/')[3]
+            number=filedict['t1'].split('/')[4]
             nib_img = nibabel.load(filedict[seqtype])
             out.append(torch.tensor(nib_img.get_fdata()))
         out = torch.stack(out)
         out_dict = {}
         if self.test_flag:
-          #  print('path', filedict[seqtype])
-            path2 = './Bratssliced/test_labels/' + str(
+            path2 = './data/brats/test_labels/' + str(
                 number) + '-label.nii.gz'
 
 
             seg=nibabel.load(path2)
             seg=seg.get_fdata()
-           # print('seg', seg.shape, seg.max(), seg.min())
             image = torch.zeros(4, 256, 256)
             image[:, 8:-8, 8:-8] = out
             label = seg[None, ...]
@@ -68,8 +66,8 @@ class BRATSDataset(torch.utils.data.Dataset):
                 weak_label = 0
             out_dict["y"]=weak_label
         else:
-            image = torch.zeros(4,256,256)#out[:-1, 8:-8,8:-8]
-            image[:,8:-8,8:-8]=out[:-1,...]
+            image = torch.zeros(4,256,256)
+            image[:,8:-8,8:-8]=out[:-1,...]		#pad to a size of (256,256)
             label = out[-1, ...][None, ...]
             if label.max()>0:
                 weak_label=1
@@ -77,21 +75,10 @@ class BRATSDataset(torch.utils.data.Dataset):
                 weak_label=0
             out_dict["y"] = weak_label
 
-
-       # print('outnumber', number)
         return (image, out_dict, weak_label, label, number )
 
     def __len__(self):
         return len(self.database)
 
 
-# if __name__ == '__main__':
-#     ds = BRATSDataset( "./Bratssliced/training", test_flag=False)
-#     dl = torch.utils.data.DataLoader(
-#         ds,
-#         batch_size=1,
-#         shuffle=True)
-#     for (img, label, weak_label) in dl:
-#         print(img.shape)
-#         print(label.shape)
-#         break
+
