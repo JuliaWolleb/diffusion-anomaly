@@ -27,13 +27,13 @@ python scripts/classifier_train.py --data_dir path_to_traindata --dataset brats_
 ```
 To train the diffusion model, run
 ```
-python scripts/image_train.py --data_dir --data_dir path_to_traindata  $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
+python scripts/image_train.py --data_dir --data_dir path_to_traindata --datasaet brats_or_chexpert  $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
 ```
 The model will be saved in the *results* folder.
 
 For image-to-image translation to a healthy subject on the test set, run
 ```
-python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS  $SAMPLE_FLAGS 
+python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --dataset brats_or_chexpert --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS  $SAMPLE_FLAGS 
 ```
 A visualization of the sampling process is done using [Visdom](https://github.com/fossasia/visdom).
 
@@ -52,7 +52,7 @@ We follow the implementation given in this [repo](https://github.com/aubreychen9
 ### DDPM
 For sampling using the DDPM approach, run 
 ```
-python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS 
+python scripts/classifier_sample_known.py  --data_dir path_to_traindata  --model_path ./results/model.pt --classifier_path ./results/classifier.pt  --dataset brats_or_chexpert --classifier_scale 100 --noise_level 500 $MODEL_FLAGS $DIFFUSION_FLAGS $CLASSIFIER_FLAGS 
 ```
 
 ## Pretrained Models
