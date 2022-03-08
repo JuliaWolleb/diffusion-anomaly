@@ -56,11 +56,7 @@ def main():
          image_size=args.image_size,
          class_cond=True,
      )
-     datal = iter(data)# th.utils.data.DataLoader(
-       # data,
-       # batch_size=args.batch_size,
-       # shuffle=False)
-    
+     datal = iter(data)
    
     model.load_state_dict(
         dist_util.load_state_dict(args.model_path, map_location="cpu")
