@@ -581,6 +581,7 @@ class GaussianDiffusion:
             classifier=classifier
         ):
             final = sample
+      
         return final["sample"], x_noisy, img
 
     def p_sample_loop_interpolation(
@@ -896,10 +897,7 @@ class GaussianDiffusion:
         t = th.randint(0,1, (b,), device=device).long().to(device)
         org = img[0].to(device)
         img = img[0].to(device)
-        r, g, b = img[0, 0, :, :], img[0, 1, :, :], img[0, 2, :, :]
-        gray = img[0, ...]
-        gray = visualize(gray)
-        #  save_image(gray, './movie/org' + '.png')
+        
         indices = list(range(t))[::-1]
         noise = th.randn_like(img).to(device)
         x_noisy = self.q_sample(x_start=img, t=t, noise=noise).to(device)
@@ -1213,4 +1211,3 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)
-

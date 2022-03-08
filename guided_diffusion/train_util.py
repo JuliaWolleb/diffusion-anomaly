@@ -46,10 +46,12 @@ class TrainLoop:
         schedule_sampler=None,
         weight_decay=0.0,
         lr_anneal_steps=0,
+        dataset='brats',
     ):
         self.model = model
         self.diffusion = diffusion
         self.datal = data
+        self.dataset=dataset
         self.iterdatal = iter(data)
         self.batch_size = batch_size
         self.microbatch = microbatch if microbatch > 0 else batch_size
@@ -162,23 +164,22 @@ class TrainLoop:
 
     def run_loop(self):
         i = 0
-      
 
         while (
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps
         ):
-            try:
-                batch, cond, label = next(self.iterdatal)
-            except:
-                self.iterdatal = iter(self.datal)
-                batch, cond, label, _, _ = next(self.iterdatal)
+            if self.dataset=='brats':
+                try:
+                    batch, cond, label = next(self.iterdatal)
+                except:
+                    self.iterdatal = iter(self.datal)
+                    batch, cond, label, _, _ = next(self.iterdatal)
+            elif self.dataset=='chexpert':
+                batch, cond = next(self.datal)
+                cond.pop("path", None)
 
-            lossmse, sample = self.run_step(batch, cond)
- 
-         
-          
-
+            self.run_step(batch, cond)
 
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()

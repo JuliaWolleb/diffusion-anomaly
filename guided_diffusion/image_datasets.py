@@ -119,6 +119,9 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         path = self.local_images[idx]
+        name=str(path).split("/")[-1].split(".")[0]
+        print('path', name)
+
 
         numpy_img = np.load(path)
         arr = visualize(numpy_img).astype(np.float32)
