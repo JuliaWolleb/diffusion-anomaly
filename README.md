@@ -23,7 +23,7 @@ SAMPLE_FLAGS="--batch_size 1 --num_samples 1 --timestep_respacing ddim1000 --use
 ```
 To train the classification model, run
 ```
-python scripts/classifier_train.py --data_dir path_to_traindata --val_data_dir path_to_validation data $TRAIN_FLAGS $CLASSIFIER_FLAGS
+python scripts/classifier_train.py --data_dir path_to_traindata --dataset brats_or_chexpert $TRAIN_FLAGS $CLASSIFIER_FLAGS
 ```
 To train the diffusion model, run
 ```
@@ -42,7 +42,7 @@ A visualization of the sampling process is done using [Visdom](https://github.co
 
 ### FixedPoint-GAN
 
-We follow the implementation given in this [repo](https://github.com/mahfuzmohammad/Fixed-Point-GAN). We train the model for 150 epochs.  choose λ<sub>cls</sub>=1, λ<sub>gp</sub>=λ<sub>id</sub>=λ<sub>rec</sub>=10,  and train our model for 150 epochs. The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
+We follow the implementation given in this [repo](https://github.com/mahfuzmohammad/Fixed-Point-GAN). We choose λ<sub>cls</sub>=1, λ<sub>gp</sub>=λ<sub>id</sub>=λ<sub>rec</sub>=10,  and train our model for 150 epochs. The batch size is set to 10, and the learning rate to 10<sup>-4</sup>.
 
 ### VAE
 
