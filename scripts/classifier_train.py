@@ -1,5 +1,5 @@
 """
-Train a noised image classifier.
+Train a noised image classifier on ImageNet.
 """
 
 import argparse
@@ -36,7 +36,6 @@ from guided_diffusion.script_util import (
     create_classifier_and_diffusion,
 )
 from guided_diffusion.train_util import parse_resume_step_from_filename, log_loss_dict
-
 
 
 
@@ -78,24 +77,24 @@ def main():
 
 
     logger.log("creating data loader...")
-    ds = BRATSDataset(args.data_dir, test_flag=False)
-    datal = th.utils.data.DataLoader(
-        ds,
-        batch_size=args.batch_size,
-        shuffle=True)
-    data = iter(datal)
 
-
-    if args.val_data_dir:
-        dval = BRATSDataset(args.val_data_dir, test_flag=True)
-        datavalload = th.utils.data.DataLoader(
-            dval,
+    if args.dataset == 'brats':
+        ds = BRATSDataset(args.data_dir, test_flag=False)
+        datal = th.utils.data.DataLoader(
+            ds,
             batch_size=args.batch_size,
-            shuffle=False)
-        val_data = iter(datavalload)
+            shuffle=True)
+        data = iter(datal)
 
-    else:
-        val_data = None
+    elif args.dataset == 'chexpert':
+        data = load_data(
+            data_dir=args.data_dir,
+            batch_size=1,
+            image_size=args.image_size,
+            class_cond=True,
+        )
+        print('dataset is chexpert')
+
 
 
     logger.log(f"creating optimizer...")
@@ -113,12 +112,16 @@ def main():
 
 
     def forward_backward_log(data_loader, step, prefix="train"):
-    
-        batch, extra, labels,_ , _ = next(data_loader)
+        if args.dataset=='brats':
+            batch, extra, labels,_ , _ = next(data_loader)
+            print('IS BRATS')
+
+        elif  args.dataset=='chexpert':
+            batch, extra = next(data_loader)
+            labels = extra["y"].to(dist_util.dev())
+            print('IS CHEXPERT')
 
         print('labels', labels)
-
-
         batch = batch.to(dist_util.dev())
         labels= labels.to(dist_util.dev())
         if args.noised:
@@ -259,6 +262,7 @@ def create_argparser():
         log_interval=1,
         eval_interval=1000,
         save_interval=5000,
+        dataset='brats'
     )
     defaults.update(classifier_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

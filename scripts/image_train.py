@@ -34,18 +34,23 @@ def main():
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion,  maxt=1000)
 
     logger.log("creating data loader...")
-    # data = load_data(
-    #     data_dir=args.data_dir,
-    #     batch_size=args.batch_size,
-    #     image_size=args.image_size,
-    #     class_cond=args.class_cond,
-    # )
-    ds = BRATSDataset(args.data_dir, test_flag=False)
-    datal = th.utils.data.DataLoader(
-        ds,
-        batch_size=args.batch_size,
-        shuffle=True)
 
+    if args.dataset == 'brats':
+        ds = BRATSDataset(args.data_dir, test_flag=False)
+        datal = th.utils.data.DataLoader(
+            ds,
+            batch_size=args.batch_size,
+            shuffle=True)
+       # data = iter(datal)
+
+    elif args.dataset == 'chexpert':
+        datal = load_data(
+            data_dir=args.data_dir,
+            batch_size=1,
+            image_size=args.image_size,
+            class_cond=True,
+        )
+        print('dataset is chexpert')
 
     logger.log("training...")
     TrainLoop(
@@ -64,6 +69,7 @@ def main():
         schedule_sampler=schedule_sampler,
         weight_decay=args.weight_decay,
         lr_anneal_steps=args.lr_anneal_steps,
+        dataset=args.dataset
     ).run_loop()
 
 
@@ -82,6 +88,7 @@ def create_argparser():
         resume_checkpoint='',
         use_fp16=False,
         fp16_scale_growth=1e-3,
+        dataset='brats',
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
@@ -91,4 +98,3 @@ def create_argparser():
 
 if __name__ == "__main__":
     main()
-

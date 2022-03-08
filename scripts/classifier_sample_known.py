@@ -32,8 +32,6 @@ def visualize(img):
     normalized_img = (img - _min)/ (_max - _min)
     return normalized_img
 
-grad_window = viz.line(Y=th.zeros((1)).cpu(), X=th.zeros((1)).cpu(), opts=dict(xlabel='step', ylabel='amplitude', title='gradient'))
-
 def main():
     args = create_argparser().parse_args()
 
@@ -44,17 +42,25 @@ def main():
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, model_and_diffusion_defaults().keys())
     )
-    # data = load_data(
-    #     data_dir=args.data_dir,
-    #     batch_size=1,
-    #     image_size=args.image_size,
-    #     class_cond=True,
-    # )
-    ds = BRATSDataset(args.data_dir, test_flag=True)
-    datal = th.utils.data.DataLoader(
+    if args.dataset=='brats':
+      ds = BRATSDataset(args.data_dir, test_flag=True)
+      datal = th.utils.data.DataLoader(
         ds,
         batch_size=args.batch_size,
-        shuffle=True)
+        shuffle=False)
+    
+    elif args.dataset=='chexpert':
+     data = load_data(
+         data_dir=args.data_dir,
+         batch_size=1,
+         image_size=args.image_size,
+         class_cond=True,
+     )
+     datal = iter(data)# th.utils.data.DataLoader(
+       # data,
+       # batch_size=args.batch_size,
+       # shuffle=False)
+    
    
     model.load_state_dict(
         dist_util.load_state_dict(args.model_path, map_location="cpu")
@@ -85,7 +91,6 @@ def main():
     def cond_fn(x, t,  y=None):
         assert y is not None
         with th.enable_grad():
-            x=x[:,:4,...]
             x_in = x.detach().requires_grad_(True)
             logits = classifier(x_in, t)
             log_probs = F.log_softmax(logits, dim=-1)
@@ -102,26 +107,29 @@ def main():
     logger.log("sampling...")
     all_images = []
     all_labels = []
+
     for img in datal:
 
         model_kwargs = {}
-        
-
      #   img = next(data)  # should return an image from the dataloader "data"
-        Labelmask = th.where(img[3] > 0, 1, 0)
-        print('label', img[2], (Labelmask * 1).sum())
-        
-        
-        number=img[4][0]
-        if img[2]==0:
-            continue    #take only diseased images as input
-       
+        print('img', img[0].shape, img[1])
+        if args.dataset=='brats':
+          Labelmask = th.where(img[3] > 0, 1, 0)
+          number=img[4][0]
+          if img[2]==0:
+              continue    #take only diseased images as input
+              
+          viz.image(visualize(img[0][0, 0, ...]), opts=dict(caption="img input 0"))
+          viz.image(visualize(img[0][0, 1, ...]), opts=dict(caption="img input 1"))
+          viz.image(visualize(img[0][0, 2, ...]), opts=dict(caption="img input 2"))
+          viz.image(visualize(img[0][0, 3, ...]), opts=dict(caption="img input 3"))
+          viz.image(visualize(img[3][0, ...]), opts=dict(caption="ground truth"))
+        else:
+          viz.image(visualize(img[0][0, ...]), opts=dict(caption="img input"))
+          print('img1', img[1])
+          number=img[1]["path"]
+          print('number', number)
 
-        viz.image(visualize(img[0][0, 0, ...]), opts=dict(caption="img input 0"))
-        viz.image(visualize(img[0][0, 1, ...]), opts=dict(caption="img input 1"))
-        viz.image(visualize(img[0][0, 2, ...]), opts=dict(caption="img input 2"))
-        viz.image(visualize(img[0][0, 3, ...]), opts=dict(caption="img input 3"))
-        viz.image(visualize(img[3][0, ...]), opts=dict(caption="ground truth"))
         if args.class_cond:
             classes = th.randint(
                 low=0, high=1, size=(args.batch_size,), device=dist_util.dev()
@@ -151,14 +159,20 @@ def main():
 
         print('time for 1000', start.elapsed_time(end))
 
+        if args.dataset=='brats':
+          viz.image(visualize(sample[0,0, ...]), opts=dict(caption="sampled output0"))
+          viz.image(visualize(sample[0,1, ...]), opts=dict(caption="sampled output1"))
+          viz.image(visualize(sample[0,2, ...]), opts=dict(caption="sampled output2"))
+          viz.image(visualize(sample[0,3, ...]), opts=dict(caption="sampled output3"))
+          difftot=abs(org[0, :4,...]-sample[0, ...]).sum(dim=0)
+          viz.heatmap(visualize(difftot), opts=dict(caption="difftot"))
+          
+        elif args.dataset=='chexpert':
+          viz.image(visualize(sample[0, ...]), opts=dict(caption="sampled output"+str(name)))
+          diff=abs(visualize(org[0, 0,...])-visualize(sample[0,0, ...]))
+          diff=np.array(diff.cpu())
+          viz.heatmap(np.flipud(diff), opts=dict(caption="diff"))
 
-        viz.image(visualize(sample[0,0, ...]), opts=dict(caption="sampled output0"))
-        viz.image(visualize(sample[0,1, ...]), opts=dict(caption="sampled output1"))
-        viz.image(visualize(sample[0,2, ...]), opts=dict(caption="sampled output2"))
-        viz.image(visualize(sample[0,3, ...]), opts=dict(caption="sampled output3"))
-        
-        difftot=abs(org[0, :4,...]-sample[0, ...]).sum(dim=0)
-        viz.heatmap(visualize(difftot), opts=dict(caption="difftot"))
 
         gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
         dist.all_gather(gathered_samples, sample)  # gather not supported with NCCL
@@ -203,3 +217,4 @@ def create_argparser():
 
 if __name__ == "__main__":
     main()
+
