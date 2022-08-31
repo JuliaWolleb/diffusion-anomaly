@@ -52,7 +52,7 @@ def main():
     elif args.dataset=='chexpert':
      data = load_data(
          data_dir=args.data_dir,
-         batch_size=1,
+         batch_size=args.batch_size,
          image_size=args.image_size,
          class_cond=True,
      )
