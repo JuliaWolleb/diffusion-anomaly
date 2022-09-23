@@ -881,48 +881,6 @@ class EncoderUNetModel(nn.Module):
         self.input_blocks.apply(convert_module_to_f32)
         self.middle_block.apply(convert_module_to_f32)
 
-    def get_class_activation_maps(self):
-
-        """compute Class Activation Maps"""
-
-        assert (self.cam_feature_maps is not None), "no input has ever been passed to net"
-
-        # def returnCAM(feature_conv, weight_softmax, class_idx):
-        #     # generate the class activation maps upsample to 256x256
-        #     size_upsample = (256, 256)
-        #     bz, nc, h, w = feature_conv.shape
-        #     output_cam = []
-        #     for idx in class_idx:
-        #         cam = weight_softmax[class_idx].dot(feature_conv.reshape((nc, h * w)))
-        #         cam = cam.reshape(h, w)
-        #         cam = cam - np.min(cam)
-        #         cam_img = cam / np.max(cam)
-        #         cam_img = np.uint8(255 * cam_img)
-        #         output_cam.append(cv2.resize(cam_img, size_upsample))
-        #     return output_cam
-
-        weights = self.out.weight[:,None,:]
-        print('weigtht', weights.shape)
-        bz, nc, h, w =  self.cam_feature_maps.shape
-        self.cam_feature_maps=self.cam_feature_maps[0,None,...]
-        print('bznchw', bz, nc, h,w)
-        print('rm', self.cam_feature_maps.shape)
-        beforeDot = self.cam_feature_maps.reshape((256, 8 * 8))
-        print('beforedot', beforeDot.shape)
-       # cam = np.matmul(weight[idx], beforeDot)  # -> (1, 512) x (512, 49) = (1, 49)
-        output_cam = []
-        for idx in [0,1]:
-            cam=np.matmul(np.array(weights[idx].detach().cpu()), np.array(beforeDot.detach().cpu()))
-            print('cam', cam.shape)
-            cam = cam.reshape(8,8)
-            cam = cam - np.min(cam)
-            cam_img = cam / np.max(cam)
-            cam_img = np.uint8(255 * cam_img)
-            op=cv2.resize(cam_img, (256,256))
-            print('op', op.shape)
-            output_cam.append(cv2.resize(cam_img, (256,256)))
-        print('output_cam', output_cam[0].shape)
-        return output_cam
 
     def forward(self, x, timesteps):
         """
@@ -940,20 +898,13 @@ class EncoderUNetModel(nn.Module):
             h = module(h, emb)
             if self.pool.startswith("spatial"):
                 results.append(h.type(x.dtype).mean(dim=(2, 3)))
-        h = self.middle_block(h, emb)
-
-
+        h = self.middle_block(h, emb
+    
         if self.pool.startswith("spatial"):
-         #   results.append(h.type(x.dtype).mean(dim=(2, 3)))
-          #  print('resu', len(results), results[0].shape)
-         #   h = th.cat(results, axis=-1)
-            self.cam_feature_maps = h
-            h = self.gap(h)
-            N = h.shape[0]
-            h = h.reshape(N, -1)
-            print('h1', h.shape)
+            results.append(h.type(x.dtype).mean(dim=(2, 3)))
+            h = th.cat(results, axis=-1)
             return self.out(h)
         else:
             h = h.type(x.dtype)
-            self.cam_feature_maps = h
             return self.out(h)
+
